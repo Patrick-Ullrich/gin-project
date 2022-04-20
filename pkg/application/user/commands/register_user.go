@@ -4,6 +4,7 @@ import (
 	"errors"
 	"example/gin-project/pkg/application/common/exceptions"
 	"example/gin-project/pkg/domain"
+	"example/gin-project/pkg/infrastructure/services/jwt_service"
 
 	"github.com/jackc/pgconn"
 	"gorm.io/gorm"
@@ -16,7 +17,7 @@ type RegisterUser struct {
 	LastName  string `json:"lastName" binding:"required"`
 }
 
-func RegisterUserHandle(db *gorm.DB, r RegisterUser) (domain.User, error) {
+func RegisterUserHandle(db *gorm.DB, r RegisterUser) (string, error) {
 	u := domain.User{
 		Email:     r.Email,
 		Password:  r.Password,
@@ -29,11 +30,16 @@ func RegisterUserHandle(db *gorm.DB, r RegisterUser) (domain.User, error) {
 
 		if errors.As(result.Error, &pgErr) {
 			if pgErr.Code == "23505" {
-				return domain.User{}, &exceptions.NotUniqueException{Field: "email", Message: "Email already registered"}
+				return "", &exceptions.NotUniqueException{Field: "email", Message: "Email already registered"}
 			}
 		}
-		return domain.User{}, result.Error
+		return "", result.Error
 	}
 
-	return u, nil
+	token, err := jwt_service.GenerateJwt(u.ID, u.Email, u.FirstName, u.LastName)
+	if err != nil {
+		return "", err
+	}
+
+	return token, nil
 }
